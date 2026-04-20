@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teleprompter</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0a;
+    --text: #f0ead6;
+    --accent: #c8a97e;
+    --ui-bg: rgba(20,20,20,0.92);
+    --ui-border: rgba(200,169,126,0.25);
+    --font-size: 52px;
+    --speed: 60;
+    --align: center;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Barlow', Helvetica, Arial, sans-serif;
+    font-weight: 400;
+    overflow: hidden;
+    height: 100vh;
+    cursor: none;
+  }
+
+  body.show-cursor { cursor: default; }
+
+  /* ── TELEPROMPTER STAGE ── */
+  #stage {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  #scroll-track {
+    width: min(900px, 90vw);
+    padding: 100vh 0;
+    will-change: transform;
+  }
+
+  #promptText {
+    font-size: var(--font-size);
+    line-height: 1.55;
+    text-align: var(--align);
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    transition: font-size 0.2s, text-align 0.2s;
+    letter-spacing: 0.01em;
+  }
+
+  /* center-focus gradient fade */
+  #stage::before, #stage::after {
+    content: '';
+    position: fixed;
+    left: 0; right: 0;
+    height: 28vh;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #stage::before { top: 0; background: linear-gradient(to bottom, var(--bg) 0%, transparent 100%); }
+  #stage::after  { bottom: 0; background: linear-gradient(to top, var(--bg) 0%, transparent 100%); }
+
+  /* reading line */
+  #read-line {
+    position: fixed;
+    left: 0; right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 2px;
+    background: linear-gradient(90deg, transparent 0%, var(--accent) 18%, var(--accent) 82%, transparent 100%);
+    opacity: 0.35;
+    pointer-events: none;
+    z-index: 9;
+  }
+
+  #read-line::before, #read-line::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0; height: 0;
+    opacity: 1;
+  }
+  /* left arrow pointing right */
+  #read-line::before {
+    left: 14px;
+    border-top: 9px solid transparent;
+    border-bottom: 9px solid transparent;
+    border-left: 13px solid var(--accent);
+  }
+  /* right arrow pointing left */
+  #read-line::after {
+    right: 14px;
+    border-top: 9px solid transparent;
+    border-bottom: 9px solid transparent;
+    border-right: 13px solid var(--accent);
+  }
+
+  /* ── CONTROL PANEL ── */
+  #panel {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-border);
+    border-radius: 18px;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    transition: opacity 0.4s;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    white-space: nowrap;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 95vw;
+  }
+
+  #panel.hidden { opacity: 0; pointer-events: none; }
+
+  .ctrl-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ctrl-label {
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 9px;
+  }
+
+  button {
+    background: none;
+    border: 1px solid var(--ui-border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  button:hover { background: rgba(200,169,126,0.12); border-color: var(--accent); }
+  button.active { background: rgba(200,169,126,0.2); border-color: var(--accent); color: var(--accent); }
+
+  #playBtn {
+    padding: 8px 22px;
+    font-size: 13px;
+    border-color: var(--accent);
+    color: var(--accent);
+    border-radius: 10px;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 90px;
+    height: 3px;
+    background: rgba(200,169,126,0.25);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
+  .sep { width: 1px; height: 28px; background: var(--ui-border); }
+
+  /* ── EDIT MODAL ── */
+  #editOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(6px);
+  }
+  #editOverlay.open { display: flex; }
+
+  #editBox {
+    background: #111;
+    border: 1px solid var(--ui-border);
+    border-radius: 18px;
+    padding: 28px;
+    width: min(700px, 92vw);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  #editBox h2 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  #editBox textarea {
+    background: #0d0d0d;
+    border: 1px solid var(--ui-border);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 16px;
+    font-size: 15px;
+    font-family: 'IBM Plex Mono', monospace;
+    resize: vertical;
+    min-height: 260px;
+    outline: none;
+    line-height: 1.6;
+  }
+  #editBox textarea:focus { border-color: var(--accent); }
+
+  .edit-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .edit-actions button { padding: 8px 20px; }
+  #saveBtn { background: rgba(200,169,126,0.15); border-color: var(--accent); color: var(--accent); }
+
+  /* ── THEME OPTIONS ── */
+  .theme-dot {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.15s;
+  }
+  .theme-dot.active { border-color: var(--accent); }
+
+  /* ── KEYBOARD HINT ── */
+  #hint {
+    position: fixed;
+    top: 24px;
+    right: 28px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: rgba(200,169,126,0.4);
+    z-index: 100;
+    text-align: right;
+    line-height: 1.8;
+    transition: opacity 0.4s;
+    pointer-events: none;
+  }
+  #hint.hidden { opacity: 0; }
+
+  #progressBar {
+    position: fixed;
+    left: 0; top: 0;
+    height: 2px;
+    background: var(--accent);
+    opacity: 0.5;
+    width: 0%;
+    transition: width 0.3s;
+    z-index: 50;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="progressBar"></div>
+<div id="read-line"></div>
+
+<div id="stage">
+  <div id="scroll-track">
+    <div id="promptText"></div>
+  </div>
+</div>
+
+<div id="hint">
+  SPACE · play/pause<br>
+  ↓ hold · brake<br>
+  ↑ hold · boost<br>
+  F · fullscreen<br>
+  E · edit · H · hide
+</div>
+
+<div id="panel">
+  <div class="ctrl-group">
+    <button id="playBtn" onclick="togglePlay()">▶ PLAY</button>
+  </div>
+  <div class="sep"></div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Speed</span>
+    <button onclick="adjustSpeed(-5)">−</button>
+    <input type="range" id="speedSlider" min="5" max="200" value="60" oninput="setSpeed(this.value)">
+    <button onclick="adjustSpeed(5)">+</button>
+  </div>
+  <div class="sep"></div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Size</span>
+    <button onclick="adjustSize(-4)">−</button>
+    <input type="range" id="sizeSlider" min="24" max="120" value="52" oninput="setSize(this.value)">
+    <button onclick="adjustSize(4)">+</button>
+  </div>
+  <div class="sep"></div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Align</span>
+    <button id="alignL" onclick="setAlign('left')">⬛⬜</button>
+    <button id="alignC" onclick="setAlign('center')" class="active">⬛⬛</button>
+    <button id="alignR" onclick="setAlign('right')">⬜⬛</button>
+  </div>
+  <div class="sep"></div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Theme</span>
+    <div class="theme-dot active" style="background:#c8a97e" onclick="setTheme('warm')" id="t-warm" title="Warm"></div>
+    <div class="theme-dot" style="background:#7eb8c8" onclick="setTheme('cool')" id="t-cool" title="Cool"></div>
+    <div class="theme-dot" style="background:#c8c8c8" onclick="setTheme('white')" id="t-white" title="White"></div>
+    <div class="theme-dot" style="background:#7ec87e" onclick="setTheme('green')" id="t-green" title="Green"></div>
+    <div class="theme-dot" style="background:#000;border:1.5px solid #555" onclick="setTheme('black')" id="t-black" title="Pure Black"></div>
+  </div>
+  <div class="sep"></div>
+  <div class="ctrl-group">
+    <button onclick="openEdit()">✎ Edit</button>
+    <button onclick="resetScroll()">↩ Reset</button>
+    <button onclick="toggleFullscreen()">⛶ Full</button>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="editOverlay">
+  <div id="editBox">
+    <h2>Paste Your Script</h2>
+    <textarea id="scriptInput" placeholder="Paste or type your script here..."></textarea>
+    <div class="edit-actions">
+      <button onclick="closeEdit()">Cancel</button>
+      <button id="saveBtn" onclick="saveScript()">Load Script ↵</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let playing = false;
+  let animFrame;
+  let offset = 0;
+  let lastTime = null;
+  let speed = 60;
+  let panelVisible = true;
+  let hintVisible = true;
+
+  const track = document.getElementById('scroll-track');
+  const promptText = document.getElementById('promptText');
+  const playBtn = document.getElementById('playBtn');
+  const panel = document.getElementById('panel');
+  const hint = document.getElementById('hint');
+  const progress = document.getElementById('progressBar');
+
+  // Default script
+  const defaultScript = `Welcome to your teleprompter.
+
+Click "Edit" in the controls below to paste your script.
+
+Then press PLAY — or tap the spacebar — to begin scrolling.
+
+Use the sliders to adjust speed and text size to your liking.
+
+Press F to go fullscreen and H to hide the controls for a completely clean view.`;
+
+  promptText.textContent = defaultScript;
+
+  function getMaxScroll() {
+    return track.scrollHeight - window.innerHeight;
+  }
+
+  function scrollLoop(ts) {
+    if (!playing) return;
+    if (lastTime === null) lastTime = ts;
+    const delta = ts - lastTime;
+    lastTime = ts;
+
+    // Ease liveSpeed back to targetSpeed when no key held
+    if (!braking && !boosting) {
+      liveSpeed += (targetSpeed - liveSpeed) * 0.06;
+      if (Math.abs(liveSpeed - targetSpeed) < 0.5) liveSpeed = targetSpeed;
+    }
+
+    offset += (liveSpeed / 60) * (delta / 16.67);
+    const max = getMaxScroll();
+    if (offset >= max) {
+      offset = max;
+      stopPlay();
+    } else {
+      track.style.transform = `translateY(-${offset}px)`;
+      updateProgress();
+      animFrame = requestAnimationFrame(scrollLoop);
+    }
+  }
+
+  function updateProgress() {
+    const pct = (offset / getMaxScroll()) * 100;
+    progress.style.width = pct + '%';
+  }
+
+  function startPlay() {
+    playing = true;
+    lastTime = null;
+    playBtn.textContent = '⏸ PAUSE';
+    playBtn.classList.add('active');
+    animFrame = requestAnimationFrame(scrollLoop);
+  }
+
+  function stopPlay() {
+    playing = false;
+    cancelAnimationFrame(animFrame);
+    playBtn.textContent = '▶ PLAY';
+    playBtn.classList.remove('active');
+  }
+
+  function togglePlay() {
+    playing ? stopPlay() : startPlay();
+  }
+
+  let targetSpeed = speed;
+  let liveSpeed = speed;
+  let braking = false;
+  let boosting = false;
+
+  function setSpeed(val) {
+    targetSpeed = parseFloat(val);
+    speed = targetSpeed;
+    liveSpeed = targetSpeed;
+    document.getElementById('speedSlider').value = val;
+  }
+
+  function adjustSpeed(delta) {
+    targetSpeed = Math.max(5, Math.min(200, targetSpeed + delta));
+    speed = targetSpeed;
+    liveSpeed = targetSpeed;
+    document.getElementById('speedSlider').value = targetSpeed;
+  }
+
+  function setSize(val) {
+    document.documentElement.style.setProperty('--font-size', val + 'px');
+    document.getElementById('sizeSlider').value = val;
+  }
+
+  function adjustSize(delta) {
+    const cur = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--font-size'));
+    setSize(Math.max(24, Math.min(120, cur + delta)));
+  }
+
+  function setAlign(a) {
+    document.documentElement.style.setProperty('--align', a);
+    ['alignL','alignC','alignR'].forEach(id => document.getElementById(id).classList.remove('active'));
+    document.getElementById('align' + a[0].toUpperCase()).classList.add('active');
+  }
+
+  function resetScroll() {
+    stopPlay();
+    offset = 0;
+    track.style.transform = 'translateY(0)';
+    progress.style.width = '0%';
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  }
+
+  function openEdit() {
+    stopPlay();
+    document.getElementById('scriptInput').value = promptText.textContent;
+    document.getElementById('editOverlay').classList.add('open');
+    setTimeout(() => document.getElementById('scriptInput').focus(), 50);
+  }
+
+  function closeEdit() {
+    document.getElementById('editOverlay').classList.remove('open');
+  }
+
+  function saveScript() {
+    const txt = document.getElementById('scriptInput').value.trim();
+    if (txt) {
+      promptText.textContent = txt;
+      resetScroll();
+    }
+    closeEdit();
+  }
+
+  function toggleControls() {
+    panelVisible = !panelVisible;
+    hintVisible = !hintVisible;
+    panel.classList.toggle('hidden', !panelVisible);
+    hint.classList.toggle('hidden', !hintVisible);
+    document.body.classList.toggle('show-cursor', panelVisible);
+  }
+
+  // Themes
+  const themes = {
+    warm:  { bg: '#0a0a0a', text: '#f0ead6', accent: '#c8a97e' },
+    cool:  { bg: '#08090f', text: '#d6e8f0', accent: '#7eb8c8' },
+    white: { bg: '#f5f5f0', text: '#1a1a1a', accent: '#666' },
+    green: { bg: '#050f07', text: '#cff0d6', accent: '#7ec87e' },
+    black: { bg: '#000000', text: '#ffffff', accent: '#ffffff' },
+  };
+
+  function setTheme(name) {
+    const t = themes[name];
+    const r = document.documentElement.style;
+    r.setProperty('--bg', t.bg);
+    r.setProperty('--text', t.text);
+    r.setProperty('--accent', t.accent);
+    document.querySelectorAll('.theme-dot').forEach(d => d.classList.remove('active'));
+    document.getElementById('t-' + name).classList.add('active');
+  }
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', e => {
+    if (document.getElementById('editOverlay').classList.contains('open')) {
+      if (e.key === 'Escape') closeEdit();
+      return;
+    }
+    if (e.repeat) return; // ignore held-key repeats for these
+    switch(e.key) {
+      case ' ':         e.preventDefault(); togglePlay(); break;
+      case 'ArrowUp':   e.preventDefault(); boosting = true; liveSpeed = Math.min(targetSpeed * 2.5, 300); break;
+      case 'ArrowDown': e.preventDefault(); braking = true;  liveSpeed = Math.max(targetSpeed * 0.1, 2); break;
+      case 'ArrowLeft': e.preventDefault(); adjustSize(-4); break;
+      case 'ArrowRight':e.preventDefault(); adjustSize(4);  break;
+      case 'f': case 'F': toggleFullscreen(); break;
+      case 'e': case 'E': openEdit(); break;
+      case 'r': case 'R': resetScroll(); break;
+      case 'h': case 'H': toggleControls(); break;
+      case 'Escape': if (playing) stopPlay(); break;
+    }
+  });
+
+  document.addEventListener('keyup', e => {
+    if (e.key === 'ArrowUp')   { boosting = false; }
+    if (e.key === 'ArrowDown') { braking = false; }
+  });
+
+  // Auto-hide cursor & controls after inactivity
+  let idleTimer;
+  function resetIdle() {
+    document.body.classList.add('show-cursor');
+    if (playing && panelVisible) {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        if (playing) {
+          document.body.classList.remove('show-cursor');
+        }
+      }, 3000);
+    }
+  }
+  document.addEventListener('mousemove', resetIdle);
+</script>
+</body>
+</html>
