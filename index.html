@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Teleprompter</title>
+<title>Prompt Up The Jam</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -109,29 +109,28 @@
   /* ── CONTROL PANEL ── */
   #panel {
     position: fixed;
-    bottom: 28px;
+    bottom: 24px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 100;
     background: var(--ui-bg);
     border: 1px solid var(--ui-border);
     border-radius: 18px;
-    padding: 14px 20px;
+    padding: 14px 18px;
     display: flex;
-    align-items: center;
-    gap: 18px;
+    flex-direction: column;
+    gap: 10px;
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     transition: opacity 0.4s;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
-    white-space: nowrap;
-    flex-wrap: wrap;
-    justify-content: center;
-    max-width: 95vw;
+    width: min(340px, 92vw);
   }
 
   #panel.hidden { opacity: 0; pointer-events: none; }
+
+  .sep { display: none; }
 
   .ctrl-group {
     display: flex;
@@ -144,6 +143,7 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-size: 9px;
+    min-width: 40px;
   }
 
   button {
@@ -156,12 +156,18 @@
     font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
     transition: background 0.15s, border-color 0.15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
   }
   button:hover { background: rgba(200,169,126,0.12); border-color: var(--accent); }
   button.active { background: rgba(200,169,126,0.2); border-color: var(--accent); color: var(--accent); }
+  button.active svg { color: var(--accent); }
 
   #playBtn {
-    padding: 8px 22px;
+    width: 100%;
+    padding: 9px;
     font-size: 13px;
     border-color: var(--accent);
     color: var(--accent);
@@ -170,7 +176,7 @@
 
   input[type=range] {
     -webkit-appearance: none;
-    width: 90px;
+    flex: 1;
     height: 3px;
     background: rgba(200,169,126,0.25);
     border-radius: 2px;
@@ -184,7 +190,12 @@
     cursor: pointer;
   }
 
-  .sep { width: 1px; height: 28px; background: var(--ui-border); }
+  .ctrl-group:has(input[type=range]) { gap: 6px; }
+
+  .align-btn svg { display: block; }
+
+  .ctrl-group:last-child { justify-content: stretch; gap: 8px; }
+  .ctrl-group:last-child button { flex: 1; }
 
   /* ── EDIT MODAL ── */
   #editOverlay {
@@ -248,21 +259,102 @@
   }
   .theme-dot.active { border-color: var(--accent); }
 
+
   /* ── KEYBOARD HINT ── */
   #hint {
     position: fixed;
-    top: 24px;
-    right: 28px;
+    top: 20px;
+    right: 20px;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: rgba(200,169,126,0.4);
+    font-size: 12px;
     z-index: 100;
-    text-align: right;
-    line-height: 1.8;
     transition: opacity 0.4s;
     pointer-events: none;
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-border);
+    border-radius: 12px;
+    padding: 12px 16px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
   }
   #hint.hidden { opacity: 0; }
+
+  .hint-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    line-height: 2.1;
+  }
+  .hint-key {
+    color: var(--accent);
+    opacity: 1;
+    white-space: nowrap;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+  }
+  .hint-desc {
+    color: var(--text);
+    opacity: 0.55;
+    white-space: nowrap;
+  }
+
+  /* ── WELCOME SCREEN ── */
+  #welcome {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+    cursor: pointer;
+    transition: opacity 0.6s;
+  }
+  #welcome.fade-out { opacity: 0; pointer-events: none; }
+  #welcome h1 {
+    font-family: 'Barlow', sans-serif;
+    font-size: clamp(32px, 6vw, 72px);
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  #welcome h1::before {
+    content: '';
+    display: inline-block;
+    width: 0; height: 0;
+    border-top: 0.55em solid transparent;
+    border-bottom: 0.55em solid transparent;
+    border-left: 0.75em solid var(--accent);
+    flex-shrink: 0;
+  }
+  #welcome p {
+    font-family: 'Barlow', sans-serif;
+    font-weight: 400;
+    font-size: 13px;
+    color: rgba(200,169,126,0.4);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  #welcome-license {
+    position: absolute;
+    bottom: 24px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: rgba(200,169,126,0.3);
+    text-align: center;
+    line-height: 1.8;
+  }
+  #welcome-license a {
+    color: rgba(200,169,126,0.45);
+    text-decoration: none;
+  }
+  #welcome-license a:hover { color: rgba(200,169,126,0.8); }
 
   #progressBar {
     position: fixed;
@@ -280,6 +372,14 @@
 </head>
 <body>
 
+<div id="welcome">
+  <h1>Prompt Up The Jam</h1>
+  <p>Click anywhere to begin</p>
+  <div id="welcome-license">
+    Prompt Up The Jam © 2026 Jon Kost<br>
+    <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank">CC BY-SA 4.0</a>
+  </div>
+</div>
 <div id="progressBar"></div>
 <div id="read-line"></div>
 
@@ -289,12 +389,16 @@
   </div>
 </div>
 
+
 <div id="hint">
-  SPACE · play/pause<br>
-  ↓ hold · brake<br>
-  ↑ hold · boost<br>
-  F · fullscreen<br>
-  E · edit · H · hide
+  <div class="hint-row"><span class="hint-key">SPACE</span><span class="hint-desc">play / pause</span></div>
+  <div class="hint-row"><span class="hint-key">DOWN hold</span><span class="hint-desc">brake</span></div>
+  <div class="hint-row"><span class="hint-key">UP hold</span><span class="hint-desc">boost</span></div>
+  <div class="hint-row"><span class="hint-key">OPT + DOWN</span><span class="hint-desc">reverse</span></div>
+  <div class="hint-row"><span class="hint-key">OPT + UP</span><span class="hint-desc">forward</span></div>
+  <div class="hint-row"><span class="hint-key">F</span><span class="hint-desc">fullscreen</span></div>
+  <div class="hint-row"><span class="hint-key">E</span><span class="hint-desc">edit</span></div>
+  <div class="hint-row"><span class="hint-key">H</span><span class="hint-desc">hide controls</span></div>
 </div>
 
 <div id="panel">
@@ -318,9 +422,9 @@
   <div class="sep"></div>
   <div class="ctrl-group">
     <span class="ctrl-label">Align</span>
-    <button id="alignL" onclick="setAlign('left')">⬛⬜</button>
-    <button id="alignC" onclick="setAlign('center')" class="active">⬛⬛</button>
-    <button id="alignR" onclick="setAlign('right')">⬜⬛</button>
+    <button id="alignL" class="align-btn" onclick="setAlign('left')"><svg width="14" height="12" viewBox="0 0 14 12" fill="currentColor"><rect x="0" y="0" width="14" height="2" rx="1"/><rect x="0" y="5" width="9" height="2" rx="1"/><rect x="0" y="10" width="12" height="2" rx="1"/></svg></button>
+    <button id="alignC" class="align-btn active" onclick="setAlign('center')"><svg width="14" height="12" viewBox="0 0 14 12" fill="currentColor"><rect x="0" y="0" width="14" height="2" rx="1"/><rect x="2.5" y="5" width="9" height="2" rx="1"/><rect x="1" y="10" width="12" height="2" rx="1"/></svg></button>
+    <button id="alignR" class="align-btn" onclick="setAlign('right')"><svg width="14" height="12" viewBox="0 0 14 12" fill="currentColor"><rect x="0" y="0" width="14" height="2" rx="1"/><rect x="5" y="5" width="9" height="2" rx="1"/><rect x="2" y="10" width="12" height="2" rx="1"/></svg></button>
   </div>
   <div class="sep"></div>
   <div class="ctrl-group">
@@ -352,6 +456,12 @@
 </div>
 
 <script>
+  const welcome = document.getElementById('welcome');
+  welcome.addEventListener('click', () => {
+    welcome.classList.add('fade-out');
+    setTimeout(() => welcome.remove(), 600);
+  });
+
   let playing = false;
   let animFrame;
   let offset = 0;
@@ -480,11 +590,14 @@ Press F to go fullscreen and H to hide the controls for a completely clean view.
     progress.style.width = '0%';
   }
 
+
   function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
+    const el = document.documentElement;
+    const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+    if (!isFullscreen) {
+      (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
     } else {
-      document.exitFullscreen();
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
     }
   }
 
