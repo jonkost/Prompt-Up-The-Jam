@@ -39,7 +39,10 @@
     align-items: flex-start;
     justify-content: center;
     overflow: hidden;
+    transition: transform 0.3s;
   }
+
+  #stage.mirrored { transform: scaleX(-1); }
 
   #scroll-track {
     width: min(900px, 90vw);
@@ -399,6 +402,7 @@
   <div class="hint-row"><span class="hint-key">F</span><span class="hint-desc">fullscreen</span></div>
   <div class="hint-row"><span class="hint-key">E</span><span class="hint-desc">edit</span></div>
   <div class="hint-row"><span class="hint-key">H</span><span class="hint-desc">hide controls</span></div>
+  <div class="hint-row"><span class="hint-key">M</span><span class="hint-desc">mirror mode</span></div>
 </div>
 
 <div id="panel">
@@ -439,6 +443,7 @@
   <div class="ctrl-group">
     <button onclick="openEdit()">✎ Edit</button>
     <button onclick="resetScroll()">↩ Reset</button>
+    <button id="mirrorBtn" onclick="toggleMirror()">⟺ Mirror</button>
     <button onclick="toggleFullscreen()">⛶ Full</button>
   </div>
 </div>
@@ -552,6 +557,13 @@ Press F to go fullscreen and H to hide the controls for a completely clean view.
   let braking = false;
   let boosting = false;
   let reversing = false;
+  let mirrored = false;
+
+  function toggleMirror() {
+    mirrored = !mirrored;
+    document.getElementById('stage').classList.toggle('mirrored', mirrored);
+    document.getElementById('mirrorBtn').classList.toggle('active', mirrored);
+  }
 
   function setSpeed(val) {
     targetSpeed = parseFloat(val);
@@ -669,6 +681,7 @@ Press F to go fullscreen and H to hide the controls for a completely clean view.
       case 'e': case 'E': openEdit(); break;
       case 'r': case 'R': resetScroll(); break;
       case 'h': case 'H': toggleControls(); break;
+      case 'm': case 'M': toggleMirror(); break;
       case 'Escape': if (playing) stopPlay(); break;
     }
   });
