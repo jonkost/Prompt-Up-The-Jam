@@ -358,6 +358,62 @@
   }
   #welcome-license a:hover { color: rgba(200,169,126,0.8); }
 
+  /* ── TOUCH SOFT CONTROLS ── */
+  #touch-overlay {
+    display: none;
+    position: fixed;
+    bottom: 28px;
+    right: 20px;
+    z-index: 100;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  @media (pointer: coarse) {
+    #touch-overlay { display: flex; }
+  }
+
+  .tc-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: rgba(200,169,126,0.07);
+    border: 1px solid rgba(200,169,126,0.16);
+    color: rgba(200,169,126,0.4);
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace;
+    transition: background 0.12s, color 0.12s;
+    -webkit-tap-highlight-color: transparent;
+    padding: 0;
+    min-height: 42px;
+  }
+
+  .tc-btn:active {
+    background: rgba(200,169,126,0.25);
+    color: rgba(200,169,126,0.9);
+  }
+
+  #tcPlay {
+    width: 50px;
+    height: 50px;
+    min-height: 50px;
+    font-size: 18px;
+    background: rgba(200,169,126,0.11);
+    border-color: rgba(200,169,126,0.26);
+    color: rgba(200,169,126,0.55);
+  }
+
+  #tcPlay.active {
+    background: rgba(200,169,126,0.2);
+    border-color: rgba(200,169,126,0.5);
+    color: rgba(200,169,126,1);
+  }
+
   /* ── TOUCH HINT SWITCHING ── */
   .touch-only { display: none; }
 
@@ -471,6 +527,14 @@
   </div>
 </div>
 
+<!-- Touch overlay -->
+<div id="touch-overlay">
+  <button class="tc-btn" id="tcToggle" onclick="toggleControls()">☰</button>
+  <button class="tc-btn" id="tcBoost">↑</button>
+  <button class="tc-btn" id="tcPlay" onclick="togglePlay()">▶</button>
+  <button class="tc-btn" id="tcBrake">↓</button>
+</div>
+
 <!-- Edit Modal -->
 <div id="editOverlay">
   <div id="editBox">
@@ -490,13 +554,15 @@
     setTimeout(() => welcome.remove(), 600);
   });
 
+  const isTouch = window.matchMedia('(pointer: coarse)').matches;
+
   let playing = false;
   let animFrame;
   let offset = 0;
   let lastTime = null;
   let speed = 60;
-  let panelVisible = true;
-  let hintVisible = true;
+  let panelVisible = !isTouch;
+  let hintVisible = !isTouch;
 
   const track = document.getElementById('scroll-track');
   const promptText = document.getElementById('promptText');
@@ -504,6 +570,11 @@
   const panel = document.getElementById('panel');
   const hint = document.getElementById('hint');
   const progress = document.getElementById('progressBar');
+
+  if (isTouch) {
+    panel.classList.add('hidden');
+    hint.classList.add('hidden');
+  }
 
   // Default script
   const defaultScript = `Welcome to your teleprompter.
@@ -561,6 +632,8 @@ Press F to go fullscreen and H to hide the controls for a completely clean view.
     lastTime = null;
     playBtn.textContent = '⏸ PAUSE';
     playBtn.classList.add('active');
+    const tcPlay = document.getElementById('tcPlay');
+    if (tcPlay) { tcPlay.textContent = '⏸'; tcPlay.classList.add('active'); }
     animFrame = requestAnimationFrame(scrollLoop);
   }
 
@@ -569,6 +642,8 @@ Press F to go fullscreen and H to hide the controls for a completely clean view.
     cancelAnimationFrame(animFrame);
     playBtn.textContent = '▶ PLAY';
     playBtn.classList.remove('active');
+    const tcPlay = document.getElementById('tcPlay');
+    if (tcPlay) { tcPlay.textContent = '▶'; tcPlay.classList.remove('active'); }
   }
 
   function togglePlay() {
@@ -716,34 +791,59 @@ Press F to go fullscreen and H to hide the controls for a completely clean view.
 
   // Touch controls
   const stage = document.getElementById('stage');
-  let touchStartY = 0, touchStartX = 0, touchCount = 0, touchStartTime = 0;
+  let touchStartY = 0, touchStartX = 0, touchCount = 0, touchStartTime = 0, touchDragging = false;
 
   stage.addEventListener('touchstart', e => {
     touchStartY = e.touches[0].clientY;
     touchStartX = e.touches[0].clientX;
     touchCount = e.touches.length;
     touchStartTime = Date.now();
+    touchDragging = false;
+  }, { passive: true });
+
+  stage.addEventListener('touchmove', e => {
+    if (touchCount !== 1) return;
+    const dy = e.touches[0].clientY - touchStartY;
+    if (dy > 30) {
+      braking = true; boosting = false; touchDragging = true;
+    } else if (dy < -30) {
+      boosting = true; braking = false;
+      liveSpeed = Math.min(targetSpeed * 2.5, 300);
+      touchDragging = true;
+    } else {
+      braking = false; boosting = false;
+    }
   }, { passive: true });
 
   stage.addEventListener('touchend', e => {
+    braking = false;
+    boosting = false;
     const dy = e.changedTouches[0].clientY - touchStartY;
     const dx = e.changedTouches[0].clientX - touchStartX;
-    const elapsed = Date.now() - touchStartTime;
-    const isVertical = Math.abs(dy) > Math.abs(dx);
-
-    if (Math.abs(dy) < 18 && Math.abs(dx) < 18 && elapsed < 300 && touchCount === 1) {
-      // Tap: play/pause
+    if (!touchDragging && touchCount === 1 && Date.now() - touchStartTime < 300
+        && Math.abs(dy) < 18 && Math.abs(dx) < 18) {
       togglePlay();
-    } else if (isVertical && Math.abs(dy) > 30 && touchCount === 1) {
-      // 1-finger swipe: speed
-      const steps = Math.min(Math.ceil(Math.abs(dy) / 40), 6);
-      adjustSpeed(dy < 0 ? steps * 5 : -steps * 5);
-    } else if (isVertical && Math.abs(dy) > 30 && touchCount === 2) {
-      // 2-finger swipe: text size
-      const steps = Math.min(Math.ceil(Math.abs(dy) / 40), 4);
-      adjustSize(dy < 0 ? steps * 4 : -steps * 4);
+    } else if (touchCount === 2) {
+      const isVert = Math.abs(dy) > Math.abs(dx);
+      if (isVert && Math.abs(dy) > 30) {
+        const steps = Math.min(Math.ceil(Math.abs(dy) / 40), 4);
+        adjustSize(dy < 0 ? steps * 4 : -steps * 4);
+      }
     }
+    touchDragging = false;
   }, { passive: true });
+
+  // Overlay boost / brake buttons
+  document.getElementById('tcBoost').addEventListener('touchstart', e => {
+    e.stopPropagation();
+    boosting = true; liveSpeed = Math.min(targetSpeed * 2.5, 300);
+  }, { passive: true });
+  document.getElementById('tcBoost').addEventListener('touchend', () => { boosting = false; }, { passive: true });
+  document.getElementById('tcBrake').addEventListener('touchstart', e => {
+    e.stopPropagation();
+    braking = true;
+  }, { passive: true });
+  document.getElementById('tcBrake').addEventListener('touchend', () => { braking = false; }, { passive: true });
 
   // Auto-hide cursor & controls after inactivity
   let idleTimer;
