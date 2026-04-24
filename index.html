@@ -197,8 +197,7 @@
 
   .align-btn svg { display: block; }
 
-  .ctrl-group:last-child { justify-content: stretch; gap: 8px; }
-  .ctrl-group:last-child button { flex: 1; }
+  .ctrl-group:last-child { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
   /* ── EDIT MODAL ── */
   #editOverlay {
@@ -359,6 +358,21 @@
   }
   #welcome-license a:hover { color: rgba(200,169,126,0.8); }
 
+  /* ── TOUCH HINT SWITCHING ── */
+  .touch-only { display: none; }
+
+  @media (pointer: coarse) {
+    .kb-only { display: none; }
+    .touch-only { display: flex; }
+
+    button { min-height: 44px; padding: 8px 14px; font-size: 12px; }
+    #playBtn { min-height: 52px; font-size: 14px; }
+    #panel { padding: 16px 20px; gap: 12px; width: min(400px, 94vw); }
+    input[type=range] { height: 6px; }
+    input[type=range]::-webkit-slider-thumb { width: 22px; height: 22px; }
+    .theme-dot { width: 22px; height: 22px; }
+  }
+
   #progressBar {
     position: fixed;
     left: 0; top: 0;
@@ -394,15 +408,24 @@
 
 
 <div id="hint">
-  <div class="hint-row"><span class="hint-key">SPACE</span><span class="hint-desc">play / pause</span></div>
-  <div class="hint-row"><span class="hint-key">DOWN hold</span><span class="hint-desc">brake</span></div>
-  <div class="hint-row"><span class="hint-key">UP hold</span><span class="hint-desc">boost</span></div>
-  <div class="hint-row"><span class="hint-key">OPT + DOWN</span><span class="hint-desc">reverse</span></div>
-  <div class="hint-row"><span class="hint-key">OPT + UP</span><span class="hint-desc">forward</span></div>
-  <div class="hint-row"><span class="hint-key">F</span><span class="hint-desc">fullscreen</span></div>
-  <div class="hint-row"><span class="hint-key">E</span><span class="hint-desc">edit</span></div>
-  <div class="hint-row"><span class="hint-key">H</span><span class="hint-desc">hide controls</span></div>
-  <div class="hint-row"><span class="hint-key">M</span><span class="hint-desc">mirror mode</span></div>
+  <div class="kb-only">
+    <div class="hint-row"><span class="hint-key">SPACE</span><span class="hint-desc">play / pause</span></div>
+    <div class="hint-row"><span class="hint-key">DOWN hold</span><span class="hint-desc">brake</span></div>
+    <div class="hint-row"><span class="hint-key">UP hold</span><span class="hint-desc">boost</span></div>
+    <div class="hint-row"><span class="hint-key">OPT + DOWN</span><span class="hint-desc">reverse</span></div>
+    <div class="hint-row"><span class="hint-key">OPT + UP</span><span class="hint-desc">forward</span></div>
+    <div class="hint-row"><span class="hint-key">F</span><span class="hint-desc">fullscreen</span></div>
+    <div class="hint-row"><span class="hint-key">E</span><span class="hint-desc">edit</span></div>
+    <div class="hint-row"><span class="hint-key">H</span><span class="hint-desc">hide controls</span></div>
+    <div class="hint-row"><span class="hint-key">M</span><span class="hint-desc">mirror mode</span></div>
+  </div>
+  <div class="touch-only" style="flex-direction:column">
+    <div class="hint-row"><span class="hint-key">Tap</span><span class="hint-desc">play / pause</span></div>
+    <div class="hint-row"><span class="hint-key">Swipe ↑</span><span class="hint-desc">faster</span></div>
+    <div class="hint-row"><span class="hint-key">Swipe ↓</span><span class="hint-desc">slower</span></div>
+    <div class="hint-row"><span class="hint-key">2-finger ↑</span><span class="hint-desc">bigger text</span></div>
+    <div class="hint-row"><span class="hint-key">2-finger ↓</span><span class="hint-desc">smaller text</span></div>
+  </div>
 </div>
 
 <div id="panel">
@@ -690,6 +713,37 @@ Press F to go fullscreen and H to hide the controls for a completely clean view.
     if (e.key === 'ArrowUp')   { boosting = false; }
     if (e.key === 'ArrowDown') { braking = false; }
   });
+
+  // Touch controls
+  const stage = document.getElementById('stage');
+  let touchStartY = 0, touchStartX = 0, touchCount = 0, touchStartTime = 0;
+
+  stage.addEventListener('touchstart', e => {
+    touchStartY = e.touches[0].clientY;
+    touchStartX = e.touches[0].clientX;
+    touchCount = e.touches.length;
+    touchStartTime = Date.now();
+  }, { passive: true });
+
+  stage.addEventListener('touchend', e => {
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const elapsed = Date.now() - touchStartTime;
+    const isVertical = Math.abs(dy) > Math.abs(dx);
+
+    if (Math.abs(dy) < 18 && Math.abs(dx) < 18 && elapsed < 300 && touchCount === 1) {
+      // Tap: play/pause
+      togglePlay();
+    } else if (isVertical && Math.abs(dy) > 30 && touchCount === 1) {
+      // 1-finger swipe: speed
+      const steps = Math.min(Math.ceil(Math.abs(dy) / 40), 6);
+      adjustSpeed(dy < 0 ? steps * 5 : -steps * 5);
+    } else if (isVertical && Math.abs(dy) > 30 && touchCount === 2) {
+      // 2-finger swipe: text size
+      const steps = Math.min(Math.ceil(Math.abs(dy) / 40), 4);
+      adjustSize(dy < 0 ? steps * 4 : -steps * 4);
+    }
+  }, { passive: true });
 
   // Auto-hide cursor & controls after inactivity
   let idleTimer;
