@@ -163,6 +163,9 @@
     align-items: center;
     justify-content: center;
     gap: 5px;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
   }
   button:hover { background: rgba(200,169,126,0.12); border-color: var(--accent); }
   button.active { background: rgba(200,169,126,0.2); border-color: var(--accent); color: var(--accent); }
@@ -375,34 +378,28 @@
   }
 
   .tc-btn {
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
     border-radius: 50%;
     background: rgba(200,169,126,0.07);
     border: 1px solid rgba(200,169,126,0.16);
     color: rgba(200,169,126,0.4);
-    font-size: 15px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-family: 'IBM Plex Mono', monospace;
     transition: background 0.12s, color 0.12s;
     -webkit-tap-highlight-color: transparent;
     padding: 0;
-    min-height: 42px;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
   }
 
-  .tc-btn:active {
-    background: rgba(200,169,126,0.25);
-    color: rgba(200,169,126,0.9);
-  }
+  .tc-btn:active { background: rgba(200,169,126,0.25); color: rgba(200,169,126,0.9); }
 
   #tcPlay {
-    width: 50px;
-    height: 50px;
-    min-height: 50px;
-    font-size: 18px;
     background: rgba(200,169,126,0.11);
     border-color: rgba(200,169,126,0.26);
     color: rgba(200,169,126,0.55);
@@ -486,7 +483,7 @@
 
 <div id="panel">
   <div class="ctrl-group">
-    <button id="playBtn" onclick="togglePlay()">▶ PLAY</button>
+    <button id="playBtn" onclick="togglePlay()"><svg id="playIcon" width="10" height="12" viewBox="0 0 10 12" fill="currentColor"><path d="M0 0 L10 6 L0 12Z"/></svg> PLAY</button>
   </div>
   <div class="sep"></div>
   <div class="ctrl-group">
@@ -520,19 +517,27 @@
   </div>
   <div class="sep"></div>
   <div class="ctrl-group">
-    <button onclick="openEdit()">✎ Edit</button>
-    <button onclick="resetScroll()">↩ Reset</button>
-    <button id="mirrorBtn" onclick="toggleMirror()">⟺ Mirror</button>
-    <button onclick="toggleFullscreen()">⛶ Full</button>
+    <button onclick="openEdit()">Edit</button>
+    <button onclick="resetScroll()">Reset</button>
+    <button id="mirrorBtn" onclick="toggleMirror()">Mirror</button>
+    <button onclick="toggleFullscreen()">Full</button>
   </div>
 </div>
 
 <!-- Touch overlay -->
 <div id="touch-overlay">
-  <button class="tc-btn" id="tcToggle" onclick="toggleControls()">☰</button>
-  <button class="tc-btn" id="tcBoost">↑</button>
-  <button class="tc-btn" id="tcPlay" onclick="togglePlay()">▶</button>
-  <button class="tc-btn" id="tcBrake">↓</button>
+  <button class="tc-btn" id="tcToggle" onclick="toggleControls()" aria-label="toggle controls">
+    <svg width="14" height="11" viewBox="0 0 14 11" fill="currentColor"><rect y="0" width="14" height="1.8" rx="0.9"/><rect y="4.6" width="14" height="1.8" rx="0.9"/><rect y="9.2" width="14" height="1.8" rx="0.9"/></svg>
+  </button>
+  <button class="tc-btn" id="tcBoost" aria-label="boost speed">
+    <svg width="14" height="9" viewBox="0 0 14 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 8 7 1 13 8"/></svg>
+  </button>
+  <button class="tc-btn" id="tcPlay" onclick="togglePlay()" aria-label="play">
+    <svg id="tcPlayIcon" width="11" height="13" viewBox="0 0 11 13" fill="currentColor"><path d="M0 0 L11 6.5 L0 13Z"/></svg>
+  </button>
+  <button class="tc-btn" id="tcBrake" aria-label="brake">
+    <svg width="14" height="9" viewBox="0 0 14 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 1 7 8 13 1"/></svg>
+  </button>
 </div>
 
 <!-- Edit Modal -->
@@ -542,7 +547,7 @@
     <textarea id="scriptInput" placeholder="Paste or type your script here..."></textarea>
     <div class="edit-actions">
       <button onclick="closeEdit()">Cancel</button>
-      <button id="saveBtn" onclick="saveScript()">Load Script ↵</button>
+      <button id="saveBtn" onclick="saveScript()">Load Script</button>
     </div>
   </div>
 </div>
@@ -627,23 +632,31 @@ Press F to go fullscreen and H to hide the controls for a completely clean view.
     progress.style.width = pct + '%';
   }
 
+  const SVG_PLAY  = `<svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor"><path d="M0 0 L10 6 L0 12Z"/></svg>`;
+  const SVG_PAUSE = `<svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor"><rect x="0" y="0" width="3.5" height="12" rx="1"/><rect x="6.5" y="0" width="3.5" height="12" rx="1"/></svg>`;
+
+  function syncPlayIcons(isPlaying) {
+    playBtn.innerHTML = `${isPlaying ? SVG_PAUSE : SVG_PLAY} ${isPlaying ? 'PAUSE' : 'PLAY'}`;
+    const tcPlay = document.getElementById('tcPlay');
+    if (tcPlay) {
+      tcPlay.innerHTML = isPlaying ? SVG_PAUSE : SVG_PLAY;
+      tcPlay.classList.toggle('active', isPlaying);
+    }
+  }
+
   function startPlay() {
     playing = true;
     lastTime = null;
-    playBtn.textContent = '⏸ PAUSE';
     playBtn.classList.add('active');
-    const tcPlay = document.getElementById('tcPlay');
-    if (tcPlay) { tcPlay.textContent = '⏸'; tcPlay.classList.add('active'); }
+    syncPlayIcons(true);
     animFrame = requestAnimationFrame(scrollLoop);
   }
 
   function stopPlay() {
     playing = false;
     cancelAnimationFrame(animFrame);
-    playBtn.textContent = '▶ PLAY';
     playBtn.classList.remove('active');
-    const tcPlay = document.getElementById('tcPlay');
-    if (tcPlay) { tcPlay.textContent = '▶'; tcPlay.classList.remove('active'); }
+    syncPlayIcons(false);
   }
 
   function togglePlay() {
