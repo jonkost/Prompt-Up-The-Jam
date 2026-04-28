@@ -202,6 +202,54 @@
 
   .ctrl-group:last-child { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
+  /* ── CUEOLA LOADER ── */
+  .cueola-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 4px;
+    border-top: 1px solid var(--ui-border);
+  }
+  .cueola-bar-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    opacity: 0.6;
+    white-space: nowrap;
+  }
+  #cueola-code-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--ui-border);
+    color: var(--text);
+    border-radius: 7px;
+    padding: 7px 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    outline: none;
+    min-width: 0;
+  }
+  #cueola-code-input:focus { border-color: var(--accent); }
+  #cueola-code-input::placeholder { opacity: 0.3; }
+  #cueola-load-btn {
+    padding: 7px 14px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  #cueola-status {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    opacity: 0;
+    transition: opacity 0.3s;
+    white-space: nowrap;
+  }
+  #cueola-status.on { opacity: 1; }
+
   /* ── EDIT MODAL ── */
   #editOverlay {
     display: none;
@@ -545,6 +593,13 @@
   <div id="editBox">
     <h2>Paste Your Script</h2>
     <textarea id="scriptInput" placeholder="Paste or type your script here..."></textarea>
+    <div class="cueola-bar">
+      <span class="cueola-bar-label">🐨 Cueola</span>
+      <input id="cueola-code-input" type="text" placeholder="Session code e.g. 2605A" maxlength="20"
+        onkeydown="if(event.key==='Enter')loadFromCueola()">
+      <button id="cueola-load-btn" onclick="loadFromCueola()">Load →</button>
+      <span id="cueola-status">● LIVE</span>
+    </div>
     <div class="edit-actions">
       <button onclick="closeEdit()">Cancel</button>
       <button id="saveBtn" onclick="saveScript()">Load Script</button>
@@ -872,6 +927,95 @@ Press F to go fullscreen and H to hide the controls for a completely clean view.
     }
   }
   document.addEventListener('mousemove', resetIdle);
+
+  // ── CUEOLA LIVE LOAD ──────────────────────────
+  let cueolaSub = null;
+
+  async function loadFromCueola() {
+    const code = document.getElementById('cueola-code-input').value.trim().toUpperCase();
+    if (!code) return;
+    const btn = document.getElementById('cueola-load-btn');
+    const status = document.getElementById('cueola-status');
+    btn.textContent = '...';
+    btn.disabled = true;
+    status.classList.remove('on');
+
+    if (!window._cueola_db) {
+      btn.textContent = 'Load →';
+      btn.disabled = false;
+      alert('Firebase not ready yet — try again in a moment.');
+      return;
+    }
+
+    try {
+      if (cueolaSub) { cueolaSub(); cueolaSub = null; }
+
+      cueolaSub = window._cueola_onSnapshot(
+        window._cueola_doc(window._cueola_db, 'sessions', code),
+        (snap) => {
+          if (!snap.exists()) {
+            status.textContent = '✗ NOT FOUND';
+            status.style.color = '#f05252';
+            status.classList.add('on');
+            btn.textContent = 'Load →';
+            btn.disabled = false;
+            return;
+          }
+          const d = snap.data();
+          const beats = d.beats || [];
+          const lines = [];
+
+          beats.forEach((beat, i) => {
+            const items = beat.items || [];
+            const scriptItem = items.find(it => it.type === 'script');
+            const scriptText = beat.script || (scriptItem ? scriptItem.name : '');
+            if (scriptText) {
+              lines.push(scriptText);
+            }
+          });
+
+          const assembled = lines.join('\n\n');
+          if (assembled.trim()) {
+            promptText.textContent = assembled;
+            resetScroll();
+          }
+
+          status.textContent = `● LIVE · ${code}`;
+          status.style.color = '';
+          status.classList.add('on');
+          btn.textContent = 'Load →';
+          btn.disabled = false;
+        }
+      );
+    } catch(e) {
+      console.warn('Cueola load error:', e);
+      btn.textContent = 'Load →';
+      btn.disabled = false;
+      status.textContent = '✗ ERROR';
+      status.classList.add('on');
+    }
+  }
+</script>
+
+<!-- Cueola Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, onSnapshot }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const app = initializeApp({
+    apiKey: "AIzaSyCr5ZuIB1kjPRxdDd2X2-FnFef-r1ZUFIA",
+    authDomain: "cueola.firebaseapp.com",
+    projectId: "cueola",
+    storageBucket: "cueola.firebasestorage.app",
+    messagingSenderId: "796559668931",
+    appId: "1:796559668931:web:69e54b49de99644ee79476"
+  });
+
+  const db = getFirestore(app);
+  window._cueola_db = db;
+  window._cueola_doc = doc;
+  window._cueola_onSnapshot = onSnapshot;
 </script>
 </body>
 </html>
