@@ -62,15 +62,17 @@
   }
 
   #promptText p {
-    margin-bottom: 0.65em;
+    margin: 0;
+    /* Every paragraph — including blank ones — occupies one full line,
+       so blank lines in the source document stay visible as blank lines. */
+    min-height: 1.55em;
     white-space: pre-wrap;
   }
-  #promptText p:last-child { margin-bottom: 0; }
   #promptText strong, #promptText b { font-weight: 700; }
   #promptText em, #promptText i { font-style: italic; }
-  #promptText h1, #promptText h2, #promptText h3 { font-weight: 600; margin-bottom: 0.4em; }
-  #promptText ul, #promptText ol { padding-left: 1.2em; margin-bottom: 0.65em; }
-  #promptText li { margin-bottom: 0.2em; }
+  #promptText h1, #promptText h2, #promptText h3 { font-weight: 600; }
+  #promptText ul, #promptText ol { padding-left: 1.2em; }
+  #promptText li { min-height: 1.55em; }
 
   /* center-focus gradient fade */
   #stage::before, #stage::after {
@@ -216,8 +218,6 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding-top: 4px;
-    border-top: 1px solid var(--ui-border);
   }
   .cueola-bar-label {
     font-family: 'IBM Plex Mono', monospace;
@@ -264,8 +264,6 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid var(--ui-border);
   }
   #uploadFileBtn {
     flex-shrink: 0;
@@ -285,6 +283,13 @@
     white-space: nowrap;
   }
   #uploadStatus.on { opacity: 1; }
+
+  /* ── MODAL SECTION SEPARATOR ── */
+  .modal-sep {
+    border: none;
+    border-top: 1px solid var(--ui-border);
+    margin: 0;
+  }
 
   /* ── EDIT MODAL ── */
   #editOverlay {
@@ -647,7 +652,6 @@
   <div id="editBox">
     <h2>Import Script</h2>
 
-    <!-- File upload -->
     <div class="upload-bar">
       <button id="uploadFileBtn" onclick="document.getElementById('fileInput').click()">
         <svg width="13" height="15" viewBox="0 0 13 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -661,7 +665,8 @@
       <span id="uploadStatus"></span>
     </div>
 
-    <!-- Cueola -->
+    <hr class="modal-sep">
+
     <div class="cueola-bar">
       <span class="cueola-bar-label">🐨 Cueola</span>
       <input id="cueola-code-input" type="text" placeholder="Session code e.g. 2605A" maxlength="20"
@@ -670,8 +675,9 @@
       <span id="cueola-status">● LIVE</span>
     </div>
 
-    <!-- Manual paste -->
-    <h2 style="margin-top:4px">Or Paste / Type</h2>
+    <hr class="modal-sep">
+
+    <h2>Or Paste / Type</h2>
     <textarea id="scriptInput" placeholder="Paste or type your script here..."></textarea>
     <div class="edit-actions">
       <button onclick="closeEdit()">Cancel</button>
@@ -739,11 +745,11 @@
   }
 
   function plainTextToHTML(text) {
+    // One line → one <p>. Empty lines become a non-breaking space so they
+    // still occupy a full line height, matching the original document layout.
     return text
-      .split(/\n{2,}/)
-      .map(para => para.trim())
-      .filter(Boolean)
-      .map(para => `<p>${para.replace(/\n/g, '<br>')}</p>`)
+      .split('\n')
+      .map(line => `<p>${line || ' '}</p>`)
       .join('');
   }
 
@@ -818,7 +824,10 @@ Press F to go fullscreen and H to hide the controls for a completely clean view.
   async function extractFromDOCX(arrayBuffer) {
     await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js');
     const result = await mammoth.convertToHtml({ arrayBuffer });
-    return { html: result.value };
+    // Empty <p> tags have no content and collapse to zero height.
+    // Replace them with a non-breaking space so blank lines stay visible.
+    const html = result.value.replace(/<p>\s*<\/p>/g, '<p> </p>');
+    return { html };
   }
 
   async function extractFromPages(arrayBuffer) {
