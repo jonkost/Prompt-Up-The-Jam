@@ -1211,6 +1211,41 @@ Press F to go fullscreen and H to hide the controls for a completely clean view.
     doc.save('script.pdf');
   }
 
+  // ── CUEOLA BROADCAST CHANNEL (same-browser live updates) ──
+  let cueolaBroadcast = null;
+
+  function initCueolaBroadcast() {
+    if (cueolaBroadcast) cueolaBroadcast.close();
+    cueolaBroadcast = new BroadcastChannel('prompt_up_the_jam');
+    cueolaBroadcast.onmessage = (e) => {
+      const msg = e.data;
+      if (!msg) return;
+
+      if (msg.type === 'cueola_hello') {
+        // Cueola just went live — reply so it shows "Connected"
+        cueolaBroadcast.postMessage({ type:'putj_hello' });
+        const status = document.getElementById('cueola-status');
+        status.textContent = `● LIVE · ${msg.sessionCode||''}`;
+        status.style.color = '';
+        status.classList.add('on');
+        if (msg.sessionCode) {
+          document.getElementById('cueola-code-input').value = msg.sessionCode;
+        }
+      }
+
+      if (msg.type === 'script_update' && msg.text != null) {
+        setScriptFromPlainText(msg.text);
+        const status = document.getElementById('cueola-status');
+        status.textContent = `● LIVE · ${msg.sessionCode||''}`;
+        status.style.color = '';
+        status.classList.add('on');
+      }
+    };
+  }
+
+  // Start listening immediately
+  initCueolaBroadcast();
+
   // ── CUEOLA LIVE LOAD ──────────────────────────
   let cueolaSub = null;
 
@@ -1245,19 +1280,28 @@ Press F to go fullscreen and H to hide the controls for a completely clean view.
             return;
           }
           const d = snap.data();
-          const beats = d.beats || [];
-          const lines = [];
 
-          beats.forEach(beat => {
-            const items = beat.items || [];
-            const scriptItem = items.find(it => it.type === 'script');
-            const scriptText = beat.script || (scriptItem ? scriptItem.name : '');
-            if (scriptText) lines.push(scriptText);
-          });
-
-          const assembled = lines.join('\n\n');
-          if (assembled.trim()) {
-            setScriptFromPlainText(assembled);
+          // Prefer the live prompter text written by Cueola's advance logic
+          if (d.prompter && d.prompter.text && d.prompter.text.trim()) {
+            setScriptFromPlainText(d.prompter.text);
+          } else {
+            // Fall back to assembling from script beats (older data model)
+            const beats = d.beats || [];
+            const lines = [];
+            beats.forEach(beat => {
+              const cueData = beat.cueData;
+              if (beat.type === 'script' && cueData && cueData.text) {
+                lines.push(cueData.text);
+              } else {
+                // Legacy format
+                const items = beat.items || [];
+                const scriptItem = items.find(it => it.type === 'script');
+                const scriptText = beat.script || (scriptItem ? scriptItem.name : '');
+                if (scriptText) lines.push(scriptText);
+              }
+            });
+            const assembled = lines.join('\n\n');
+            if (assembled.trim()) setScriptFromPlainText(assembled);
           }
 
           status.textContent = `● LIVE · ${code}`;
