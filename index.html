@@ -562,7 +562,7 @@
     <div class="hint-row"><span class="hint-key">OPT + DOWN</span><span class="hint-desc">reverse</span></div>
     <div class="hint-row"><span class="hint-key">OPT + UP</span><span class="hint-desc">forward</span></div>
     <div class="hint-row"><span class="hint-key">F</span><span class="hint-desc">fullscreen</span></div>
-    <div class="hint-row"><span class="hint-key">E</span><span class="hint-desc">edit</span></div>
+    <div class="hint-row"><span class="hint-key">E</span><span class="hint-desc">script</span></div>
     <div class="hint-row"><span class="hint-key">H</span><span class="hint-desc">hide controls</span></div>
     <div class="hint-row"><span class="hint-key">M</span><span class="hint-desc">mirror mode</span></div>
   </div>
@@ -612,7 +612,7 @@
   </div>
   <div class="sep"></div>
   <div class="ctrl-group">
-    <button onclick="openEdit()">Edit</button>
+    <button onclick="openEdit()">Script</button>
     <button onclick="resetScroll()">Reset</button>
     <button id="mirrorBtn" onclick="toggleMirror()">Mirror</button>
     <button onclick="toggleFullscreen()">Full</button>
@@ -680,6 +680,8 @@
     <h2>Or Paste / Type</h2>
     <textarea id="scriptInput" placeholder="Paste or type your script here..."></textarea>
     <div class="edit-actions">
+      <button onclick="downloadAsTxt()">↓ .txt</button>
+      <button onclick="downloadAsPDF()">↓ PDF</button>
       <button onclick="closeEdit()">Cancel</button>
       <button id="saveBtn" onclick="saveScript()">Load Script</button>
     </div>
@@ -766,7 +768,7 @@
   // Default script
   const defaultScript = `Welcome to your teleprompter.
 
-Tap the document icon or use Edit to import a script — PDF, DOCX, Pages, or paste text directly. You can also pull a live script from Cueola using a session code.
+Tap the document icon or use Script to import a script — PDF, DOCX, Pages, or paste text directly. You can also pull a live script from Cueola using a session code.
 
 Press PLAY — or tap the stage — to begin scrolling.
 
@@ -1169,6 +1171,45 @@ Press F to go fullscreen and H to hide the controls for a completely clean view.
     }
   }
   document.addEventListener('mousemove', resetIdle);
+
+  // ── DOWNLOAD ────────────────────────────────────
+
+  function getScriptText() {
+    const ta = document.getElementById('scriptInput').value.trim();
+    return ta || promptText.innerText.trim();
+  }
+
+  function downloadAsTxt() {
+    const txt = getScriptText();
+    if (!txt) return;
+    const blob = new Blob([txt], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'script.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  async function downloadAsPDF() {
+    const txt = getScriptText();
+    if (!txt) return;
+    await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const margin = 20;
+    const pageW = doc.internal.pageSize.width - margin * 2;
+    const pageH = doc.internal.pageSize.height - margin * 2;
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    const lines = doc.splitTextToSize(txt, pageW);
+    let y = margin;
+    for (const line of lines) {
+      if (y + 7 > margin + pageH) { doc.addPage(); y = margin; }
+      doc.text(line, margin, y);
+      y += 7;
+    }
+    doc.save('script.pdf');
+  }
 
   // ── CUEOLA LIVE LOAD ──────────────────────────
   let cueolaSub = null;
