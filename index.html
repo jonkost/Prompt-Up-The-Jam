@@ -1214,6 +1214,31 @@ Press F to go fullscreen and H to hide the controls for a completely clean view.
   // ── CUEOLA BROADCAST CHANNEL (same-browser live updates) ──
   let cueolaBroadcast = null;
 
+  // Update text in place WITHOUT resetting scroll or stopping playback.
+  // Used for live edits and cue advances — scroll continues uninterrupted.
+  function updateScriptLive(text) {
+    const html = plainTextToHTML(text);
+    const prevHeight = track.scrollHeight;
+    promptText.innerHTML = sanitizeHTML(html);
+    try { localStorage.setItem('putj_script', html); } catch(e) {}
+    // After DOM reflow, restore scroll position proportionally
+    requestAnimationFrame(() => {
+      const newHeight = track.scrollHeight;
+      if (prevHeight > 0 && newHeight > 0 && newHeight !== prevHeight) {
+        offset = (offset / prevHeight) * newHeight;
+      }
+      if (!playing) track.style.transform = `translateY(-${offset}px)`;
+      updateProgress();
+    });
+  }
+
+  function setCueolaSyncStatus(sessionCode) {
+    const status = document.getElementById('cueola-status');
+    status.textContent = `● LIVE · ${sessionCode||''}`;
+    status.style.color = '';
+    status.classList.add('on');
+  }
+
   function initCueolaBroadcast() {
     if (cueolaBroadcast) cueolaBroadcast.close();
     cueolaBroadcast = new BroadcastChannel('prompt_up_the_jam');
@@ -1222,23 +1247,25 @@ Press F to go fullscreen and H to hide the controls for a completely clean view.
       if (!msg) return;
 
       if (msg.type === 'cueola_hello') {
-        // Cueola just went live — reply so it shows "Connected"
-        cueolaBroadcast.postMessage({ type:'putj_hello' });
-        const status = document.getElementById('cueola-status');
-        status.textContent = `● LIVE · ${msg.sessionCode||''}`;
-        status.style.color = '';
-        status.classList.add('on');
+        // Cueola just went live — reply with 'ping' so Cueola marks us Connected
+        // and sends the full current script with scroll reset (script_init)
+        cueolaBroadcast.postMessage({ type:'ping' });
+        setCueolaSyncStatus(msg.sessionCode);
         if (msg.sessionCode) {
           document.getElementById('cueola-code-input').value = msg.sessionCode;
         }
       }
 
-      if (msg.type === 'script_update' && msg.text != null) {
+      if (msg.type === 'script_init' && msg.text != null) {
+        // Full reset — new session or explicit reconnect. Reset scroll and load.
         setScriptFromPlainText(msg.text);
-        const status = document.getElementById('cueola-status');
-        status.textContent = `● LIVE · ${msg.sessionCode||''}`;
-        status.style.color = '';
-        status.classList.add('on');
+        setCueolaSyncStatus(msg.sessionCode);
+      }
+
+      if (msg.type === 'script_update' && msg.text != null) {
+        // Live edit or cue advance — update text only, keep scrolling uninterrupted.
+        updateScriptLive(msg.text);
+        setCueolaSyncStatus(msg.sessionCode);
       }
     };
   }
